@@ -5,6 +5,13 @@ const gptAgent = require('./gptAgent');
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.options('*', cors()); // Enable pre-flight for all routes
+app.use((err, req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "https://mtgagent.rikspor.tel");
+  res.header("Access-Control-Allow-Headers", "Content-Type");
+  res.header("Access-Control-Allow-Methods", "OPTIONS,POST,GET");
+  res.status(err.status || 500).json({ error: err.message });
+});
 const port = 8080;
 
 app.get('/', (req, res) => {
