@@ -32,6 +32,19 @@ Resources:
           Properties:
             Path: /{proxy+}
             Method: ANY
+            CorsConfiguration:
+              AllowOrigins:
+                - https://mtgagent.rikspor.tel
+              AllowHeaders:
+                - Content-Type
+                - Authorization
+              AllowMethods:
+                - GET
+                - POST
+                - OPTIONS
+                - PUT
+                - DELETE
+              AllowCredentials: true
       Environment:
         Variables:
           JWT_CREDENTIALS_SECRET_ARN: !Ref JwtBasicAuthSecretArn
