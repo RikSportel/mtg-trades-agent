@@ -19,12 +19,13 @@ app.get('/', (req, res) => {
 });
 
 app.post('/', async (req, res) => {
-  try {
+  try { 
     const { message } = req.body;
     if (!message) {
       return res.status(400).json({ error: 'Missing message in request body' });
     }
-    const response = await gptAgent.sendMessage(message);
+    const agent = gptAgent(); // Call useAgent to get the agent object
+    const response = await agent.sendMessage(message);
     res.json({ result: response });
   } catch (error) {
     res.status(500).json({ error: error.message });

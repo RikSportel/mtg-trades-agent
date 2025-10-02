@@ -35,6 +35,7 @@ Resources:
             CorsConfiguration:
               AllowOrigins:
                 - https://mtgagent.rikspor.tel
+                - http://localhost:3000
               AllowHeaders:
                 - Content-Type
                 - Authorization
