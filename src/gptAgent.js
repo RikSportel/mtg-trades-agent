@@ -6,22 +6,31 @@ const { SecretsManagerClient, GetSecretValueCommand } = require("@aws-sdk/client
 // OpenAI agent using REACT_APP_OPENAI_KEY from env vars
 // Fetch OpenAI API key from AWS Secrets Manager using ARN from env var
 let openaiApiKey = null;
-if (process.env.OPENAI_API_KEY_SECRET_ARN) {
-  const secretsClient = new SecretsManagerClient({});
-  const secretCommand = new GetSecretValueCommand({
-    SecretId: process.env.OPENAI_API_KEY_SECRET_ARN
-  });
-  // Synchronously fetch secret before OpenAI client is created
-  // In production, consider caching or async initialization
-  // Node.js does not support top-level await, so use sync init or wrap in async function
-  // For now, throw error if not initialized externally
-  throw new Error('Top-level await is not supported in CommonJS. Please initialize openaiApiKey before requiring this module.');
+async function initOpenAIApiKey() {
+  if (process.env.OPENAI_API_KEY_SECRET_ARN) {
+    const secretsClient = new SecretsManagerClient({});
+    const secretCommand = new GetSecretValueCommand({
+      SecretId: process.env.OPENAI_API_KEY_SECRET_ARN
+    });
+    const secretResponse = await secretsClient.send(secretCommand);
+    openaiApiKey = secretResponse.SecretString;
+  } else {
+    openaiApiKey = process.env.REACT_APP_OPENAI_KEY;
+  }
 }
+let client = null;
 
-const client = new OpenAI({
-  apiKey: openaiApiKey // ⚠️ don’t expose in production
-   // only for dev; better to proxy via backend
-});
+async function ensureOpenAIClient() {
+  if (!openaiApiKey) {
+    await initOpenAIApiKey();
+  }
+  if (!client) {
+    client = new OpenAI({
+      apiKey: openaiApiKey // ⚠️ don’t expose in production
+      // only for dev; better to proxy via backend
+    });
+  }
+}
 
 function useAgent() {
   const systemContent = `
@@ -38,10 +47,11 @@ function useAgent() {
   ];
   let singleCardInfo = null;
   async function sendMessage(userInput) {
+    await ensureOpenAIClient();
     const allTools = [...scryfallTool, ...singlecardTool];
     const trackerTools = await fetchTrackerFunctions();
     let newMessages = [...messages, { role: "user", content: userInput }];
-      messages = newMessages;
+    messages = newMessages;
 
     let response;
     let msg;
@@ -107,7 +117,7 @@ function useAgent() {
           msg, // model's tool request
           ...toolResponses
         ];
-          messages = newMessages;
+        messages = newMessages;
       }
     }
 
@@ -135,7 +145,7 @@ function useAgent() {
         if (!msg.tool_calls) {
           // Final assistant reply, append and exit loop
           newMessages = [...newMessages, msg];
-            messages = newMessages;
+          messages = newMessages;
           break;
         }
 
@@ -164,11 +174,11 @@ function useAgent() {
           msg, // assistant with tool_calls
           ...toolResponses
         ];
-          messages = newMessages;
+        messages = newMessages;
       }
     }
 
-  messages = [...messages, msg];
+    messages = [...messages, msg];
     return msg.content;
   }
 
