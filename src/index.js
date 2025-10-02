@@ -3,15 +3,32 @@ const axios = require('axios');
 const cors = require('cors');
 const gptAgent = require('./gptAgent');
 const app = express();
-app.use(cors());
+// Allowed origins (prod + local dev)
+const allowedOrigins = [
+  "https://mttgagent.rikspor.tel",
+  "http://localhost:3000"
+];
+
+// Configure CORS middleware
+app.use(cors({
+  origin: (origin, callback) => {
+    // If no origin (like curl or Postman) allow it
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  exposedHeaders: ["Content-Length", "Content-Range"],
+  maxAge: 3600
+}));
 app.use(express.json());
-app.options('*', cors()); // Enable pre-flight for all routes
-app.use((err, req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "https://mtgagent.rikspor.tel");
-  res.header("Access-Control-Allow-Headers", "Content-Type");
-  res.header("Access-Control-Allow-Methods", "OPTIONS,POST,GET");
-  res.status(err.status || 500).json({ error: err.message });
-});
+
 const port = 8080;
 
 app.get('/', (req, res) => {
