@@ -1,0 +1,56 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: MTG Trades Agent backend lambda
+
+Globals:
+  Function:
+    Timeout: 10
+    Runtime: nodejs20.x
+    Architectures:
+      - x86_64
+
+Parameters:
+
+  JwtBasicAuthSecretArn:
+    Type: String
+    Description: ARN of the basic auth secret in Secrets Manager
+
+  OpenAIApiKeySecretArn:
+    Type: String
+    Description: ARN of the OpenAI API key secret in Secrets Manager
+
+Resources:
+  AppFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: cardsApiFunction
+      Handler: src/lambda.handler
+      CodeUri: .
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+      Environment:
+        Variables:
+          JWT_CREDENTIALS_SECRET_ARN: !Ref JwtBasicAuthSecretArn
+          OPENAI_API_KEY_SECRET_ARN: !Ref OpenAIApiKeySecretArn
+          MTG_BACKEND_API_URL: https://kz3dk796f0.execute-api.eu-central-1.amazonaws.com
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource:
+                - !Ref JwtBasicAuthSecretArn
+                - !Ref OpenAIApiKeySecretArn
+
+Outputs:
+  ApiUrl:
+    Description: "API Gateway endpoint URL"
+    Value: !Sub "https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com/"
+
+  FunctionName:
+    Value: !Ref AppFunction

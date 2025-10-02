@@ -1,0 +1,22 @@
+{
+  "name": "mtg-trades-agent",
+  "version": "0.1.0",
+  "description": "MTG tradelist Agent",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "echo \"No tests yet\""
+  },
+  "author": "Rik Sportel",
+  "license": "ISC",
+  "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.896.0",
+    "@vendia/serverless-express": "^4.12.6",
+    "axios": "^1.6.0",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "openai": "^6.0.1",
+    "swagger-client": "^3.35.7"
+  }
+}

@@ -1,0 +1,40 @@
+name: Deploy SAM App
+
+on:
+  push:
+    branches:
+      - main
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-central-1
+
+      - name: Install SAM CLI
+        run: |
+          sudo pip install aws-sam-cli --ignore-installed
+        
+      - name: Build SAM application
+        run: sam build
+
+      - name: Deploy SAM application
+        run: |
+          sam deploy \
+            --stack-name mtg-trades-agent \
+            --capabilities CAPABILITY_IAM \
+            --s3-bucket riksportel-mtg-trades-agent-deploy-bucket \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides \
+              JwtBasicAuthSecretArn=${{ secrets.JWT_CREDENTIALS_SECRET_ARN}} \
+              OpenAIApiKeySecretArn=${{ secrets.OPENAI_API_KEY_SECRET_ARN}}
+          
