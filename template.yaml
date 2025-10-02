@@ -30,22 +30,9 @@ Resources:
         Api:
           Type: HttpApi
           Properties:
+            ApiId: !Ref MyHttpApi
             Path: /{proxy+}
             Method: ANY
-            CorsConfiguration:
-              AllowOrigins:
-                - https://mtgagent.rikspor.tel
-                - http://localhost:3000
-              AllowHeaders:
-                - Content-Type
-                - Authorization
-              AllowMethods:
-                - GET
-                - POST
-                - OPTIONS
-                - PUT
-                - DELETE
-              AllowCredentials: true
       Environment:
         Variables:
           JWT_CREDENTIALS_SECRET_ARN: !Ref JwtBasicAuthSecretArn
@@ -60,6 +47,24 @@ Resources:
               Resource:
                 - !Ref JwtBasicAuthSecretArn
                 - !Ref OpenAIApiKeySecretArn
+
+  MyHttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowOrigins:
+          - https://mtgagent.rikspor.tel
+          - http://localhost:3000
+        AllowHeaders:
+          - Content-Type
+          - Authorization
+        AllowMethods:
+          - GET
+          - POST
+          - OPTIONS
+          - PUT
+          - DELETE
+        AllowCredentials: true
 
 Outputs:
   ApiUrl:
