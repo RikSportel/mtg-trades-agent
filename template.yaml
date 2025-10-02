@@ -23,7 +23,7 @@ Resources:
   AppFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: cardsApiFunction
+      FunctionName: cardsAgentFunction
       Handler: src/lambda.handler
       CodeUri: .
       Events:
