@@ -37,13 +37,14 @@ app.get('/', (req, res) => {
 
 app.post('/', async (req, res) => {
   try { 
-    const { message } = req.body;
+    const { message, messages } = req.body;
     if (!message) {
       return res.status(400).json({ error: 'Missing message in request body' });
     }
     const agent = gptAgent(); // Call useAgent to get the agent object
-    const response = await agent.sendMessage(message);
-    res.json({ result: response });
+    // Pass both message and messages to sendMessage
+    const updatedMessages = await agent.sendMessage(message, messages);
+    res.json({ messages: updatedMessages });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

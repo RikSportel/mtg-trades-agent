@@ -46,11 +46,12 @@ function useAgent() {
     { role: "system", content: systemContent }
   ];
   let singleCardInfo = null;
-  async function sendMessage(userInput) {
+  async function sendMessage(userInput, incomingMessages) {
     await ensureOpenAIClient();
     const allTools = [...scryfallTool, ...singlecardTool];
     const trackerTools = await fetchTrackerFunctions();
-    let newMessages = [...messages, { role: "user", content: userInput }];
+    // Use incomingMessages if provided, otherwise start with local messages
+    let newMessages = Array.isArray(incomingMessages) ? [...incomingMessages, { role: "user", content: userInput }] : [...messages, { role: "user", content: userInput }];
     messages = newMessages;
 
     let response;
@@ -179,7 +180,7 @@ function useAgent() {
     }
 
     messages = [...messages, msg];
-    return msg.content;
+  return messages;
   }
 
   return { messages, sendMessage };
