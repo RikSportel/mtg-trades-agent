@@ -46,10 +46,35 @@ function useAgent() {
     { role: "system", content: systemContent }
   ];
   let singleCardInfo = null;
+  let lastScryfallResult = null;
   async function sendMessage(userInput, incomingMessages) {
+    // Reconstruct state from incomingMessages
+    if (Array.isArray(incomingMessages)) {
+      // Find last local_singlecard tool response
+      for (let i = incomingMessages.length - 1; i >= 0; i--) {
+        const m = incomingMessages[i];
+        if (m.role === "tool" && m.content && m.tool_call_id) {
+          // Try to parse content
+          try {
+            const parsed = JSON.parse(m.content);
+            // If this is a local_singlecard result, set singleCardInfo
+            if (parsed.set_code && parsed.collector_number && parsed.image_url) {
+              singleCardInfo = parsed;
+              console.log("Reconstructed singleCardInfo from incomingMessages:", singleCardInfo);
+              break;
+            }
+            // If this is a scryfall_search result, set lastScryfallResult
+            if (parsed.object === "list" && Array.isArray(parsed.data)) {
+              lastScryfallResult = parsed;
+            }
+          } catch (e) {}
+        }
+      }
+    }
     await ensureOpenAIClient();
     const allTools = [...scryfallTool, ...singlecardTool];
-    const trackerTools = await fetchTrackerFunctions();
+  const trackerTools = await fetchTrackerFunctions();
+  console.log("Fetched trackerTools:", trackerTools);
     // Use incomingMessages if provided, otherwise start with local messages
     let newMessages = Array.isArray(incomingMessages) ? [...incomingMessages, { role: "user", content: userInput }] : [...messages, { role: "user", content: userInput }];
     messages = newMessages;
@@ -58,6 +83,7 @@ function useAgent() {
     let msg;
 
     if (!singleCardInfo) {
+      console.log("No singleCardInfo, using scryfall tools");
       while (true) {
         // Limit history to last 10 messages
         if (newMessages.length > 10) {
@@ -122,9 +148,14 @@ function useAgent() {
       }
     }
 
-    // If singleCardInfo was just set, start tracker tool loop automatically
+    // If singleCardInfo was set, start tracker tool loop automatically
     if (singleCardInfo) {
-      while (true) {
+      console.log("Have singleCardInfo, using tracker tools:", singleCardInfo);
+      let trackerToolsInitialized = trackerTools && Array.isArray(trackerTools) && trackerTools.length > 0;
+      if (!trackerToolsInitialized) {
+        console.error("Tracker tools not initialized or empty!", trackerTools);
+      }
+      while (trackerToolsInitialized) {
         if (newMessages.length > 10) {
           newMessages = newMessages.slice(newMessages.length - 10);
           console.log("Trimmed messages for length" + newMessages);
@@ -179,8 +210,7 @@ function useAgent() {
       }
     }
 
-    messages = [...messages, msg];
-  return messages;
+    return messages;
   }
 
   return { messages, sendMessage };

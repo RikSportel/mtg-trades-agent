@@ -108,7 +108,7 @@ function storeSingleCard({ set_code, collector_number, image_url }) {
 }
 
 async function getBearerToken() {
-  const apiUrl = procsess.env.MTG_BACKEND_API_URL;
+  const apiUrl = process.env.MTG_BACKEND_API_URL;
   const secret = await getCredentials();
   const basicAuth = btoa(`${secret.username}:${secret.password}`);
   const res = await fetch(`${apiUrl}/gettoken`, {
