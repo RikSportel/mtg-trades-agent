@@ -5,7 +5,7 @@ const gptAgent = require('./gptAgent');
 const app = express();
 // Allowed origins (prod + local dev)
 const allowedOrigins = [
-  "https://mttgagent.rikspor.tel",
+  "https://mtgagent.rikspor.tel",
   "http://localhost:3000"
 ];
 

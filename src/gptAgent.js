@@ -73,8 +73,8 @@ function useAgent() {
     }
     await ensureOpenAIClient();
     const allTools = [...scryfallTool, ...singlecardTool];
-  const trackerTools = await fetchTrackerFunctions();
-  console.log("Fetched trackerTools:", trackerTools);
+    const trackerTools = await fetchTrackerFunctions();
+    console.log("Fetched trackerTools:", trackerTools);
     // Use incomingMessages if provided, otherwise start with local messages
     let newMessages = Array.isArray(incomingMessages) ? [...incomingMessages, { role: "user", content: userInput }] : [...messages, { role: "user", content: userInput }];
     messages = newMessages;
