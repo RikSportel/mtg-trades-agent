@@ -77,6 +77,7 @@ const toolExecutors = {
         if (Object.keys(requestBody).length === 0) requestBody = undefined;
       }
 
+      console.log(`Sending request: operationId=${operationId}, parameters=${JSON.stringify(paramArgs)}, requestBody=${JSON.stringify(requestBody)}`);
       // Execute the operation directly
       const res = await client.execute({
         operationId,
