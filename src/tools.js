@@ -92,21 +92,19 @@ async function fetchTrackerFunctions() {
         let bodySchema = null;
 
         (details.parameters || []).forEach(param => {
-          if (param.in === "body" && param.schema) {
-            bodySchema = param.schema;
-          } else {
-            paramProps[param.name] = {
-              type: param.schema?.type || "string",
-              description: param.description || ""
-            };
-            if (param.required) requiredParams.push(param.name);
-          }
+          paramProps[param.name] = {
+            type: param.schema?.type || "string",
+            description: param.description || ""
+          };
+          if (param.required) requiredParams.push(param.name);
         });
 
-        // If body schema exists, add it as a 'body' property
-        if (bodySchema) {
-          paramProps.body = bodySchema;
-          requiredParams.push("body");
+        if (details.requestBody?.content?.["application/json"]?.schema) {
+          const bodySchema = details.requestBody.content["application/json"].schema;
+          Object.assign(paramProps, bodySchema.properties || {});
+          if (bodySchema.required) {
+            requiredParams.push(...bodySchema.required);
+          }
         }
 
         functions.push({
@@ -123,7 +121,7 @@ async function fetchTrackerFunctions() {
         });
       }
     }
-    //console.log("Fetched tracker functions:", functions);
+    console.log("Fetched tracker functions:", JSON.stringify(functions, null, 2));
     return functions;
   } catch (err) {
     return [];

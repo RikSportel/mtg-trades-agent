@@ -117,7 +117,7 @@ const systemContentMap = {
     - You MUST always use the tracker_tools to perform any collection operation. 
     - Never say you performed an action unless you have called the appropriate tracker tool and received a successful tool response.
     - If the user's intent is clear (for example, "add 2 foil copies of Ancient Tomb from Ultimate Masters"), IMMEDIATELY call the appropriate tracker tool without asking for confirmation or clarification.
-    - If the user's intent is not clear,clarify with the user.
+    - If the user's intent is not clear, clarify with the user.
     - When you use tracker_createCard or tracker_updateCard, you MUST always include the "amount" field. 
   `
 };
