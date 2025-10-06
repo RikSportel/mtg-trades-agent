@@ -1,7 +1,7 @@
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
-const gptAgent = require('./gptAgent');
+const { sendMessage } = require('./gptAgent');
 const app = express();
 // Allowed origins (prod + local dev)
 const allowedOrigins = [
@@ -41,17 +41,22 @@ app.post('/', async (req, res) => {
     if (!message) {
       return res.status(400).json({ error: 'Missing message in request body' });
     }
-    const agent = gptAgent(); // Call useAgent to get the agent object
-    // Pass both message and messages to sendMessage
-    const updatedMessages = await agent.sendMessage(message, messages);
-    res.json({ messages: updatedMessages });
+    
+    const updatedMessages = await sendMessage(message, messages);
+    res.json({ messages: updatedMessages.messages });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
 // app.listen(port, () => {
-//   console.log(`Server is running on port ${port}`);
+if (process.env.AWS_LAMBDA_FUNCTION_NAME) {
+  // Running in AWS Lambda, do not start server
+} else {
+  app.listen(port, () => {
+    console.log(`Server is running on port ${port}`);
+  });
+}
 // });
 
 module.exports = app;

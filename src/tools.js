@@ -123,7 +123,7 @@ async function fetchTrackerFunctions() {
         });
       }
     }
-    console.log("Fetched tracker functions:", functions);
+    //console.log("Fetched tracker functions:", functions);
     return functions;
   } catch (err) {
     return [];

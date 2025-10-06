@@ -14,6 +14,16 @@ async function getCredentials() {
 }
 
 const toolExecutors = {
+    scryfall_search: async (args) => {
+        //console.log("Executing scryfall_search with args:", args);
+        return await scryfallSearch(args);
+    },
+
+    local_singlecard: (args) => {
+        //console.log("Executing local_singlecard with args:", args);
+        return storeSingleCard(args);
+    },
+    
   tracker_dynamic: async (toolName, args, bearerToken) => {
     const apiUrl = process.env.MTG_BACKEND_API_URL;
     const swaggerUrl = `${apiUrl}/api-docs/swagger.json`;
@@ -73,8 +83,8 @@ const toolExecutors = {
         parameters: paramArgs,
         ...(requestBody && { requestBody })
       });
-      // Return the response data
-      return res.body || { status: "success" };
+
+      return { status: "success" };
     } catch (err) {
       return { error: err.message };
     }
@@ -108,21 +118,25 @@ function storeSingleCard({ set_code, collector_number, image_url }) {
 }
 
 async function getBearerToken() {
-  const apiUrl = process.env.MTG_BACKEND_API_URL;
-  const secret = await getCredentials();
-  const basicAuth = btoa(`${secret.username}:${secret.password}`);
-  const res = await fetch(`${apiUrl}/gettoken`, {
-    method: 'GET',
-    headers: {
-      'Authorization': `Basic ${basicAuth}`
+    const apiUrl = process.env.MTG_BACKEND_API_URL;
+    let secret;
+    if (process.env.JWT_CREDENTIALS) {
+        const [username, password] = process.env.JWT_CREDENTIALS.split(':');
+        secret = { username, password };
+    } else {
+        secret = await getCredentials();
     }
-  });
-  const data = await res.json();  
-  return data.token;
+    const basicAuth = btoa(`${secret.username}:${secret.password}`);
+    const res = await fetch(`${apiUrl}/gettoken`, {
+        method: 'GET',
+        headers: {
+        'Authorization': `Basic ${basicAuth}`
+        }
+    });
+    const data = await res.json();  
+    return data.token;
 }
 
 module.exports = {
-    toolExecutors,
-    scryfallSearch,
-    storeSingleCard
+    toolExecutors
 };
