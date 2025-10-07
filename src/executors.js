@@ -110,7 +110,12 @@ async function scryfallSearch({ name, oracle_text, colors, set, page, order, dir
   });
 
   const res = await fetch(`https://api.scryfall.com/cards/search?${params.toString()}`);
-  return res.json();
+ 
+  const json = await res.json();
+  return (json.data || []).map(card => ({
+    set: card.set,
+    collector_number: card.collector_number
+  }));
 }
 
 function storeSingleCard({ set_code, collector_number, image_url }) {

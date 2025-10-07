@@ -17,7 +17,7 @@ This implementation is stateless: We rely on message history as being passed in 
 */
 
 const { OpenAI } = require('openai');
-const { scryfallTool, singlecardTool, fetchTrackerFunctions } = require("./tools.js");
+const { scryfallTool, singlecardTool, vectorStoreTool, fetchTrackerFunctions } = require("./tools.js");
 const { toolExecutors } = require("./executors.js");
 const { SecretsManagerClient, GetSecretValueCommand } = require("@aws-sdk/client-secrets-manager");
 
@@ -88,7 +88,7 @@ try {
 async function getToolsForStep(step) {
   if (step === 1) {
     // Return scryfall_search and local_singlecard tools only for step 1
-    return [...scryfallTool, ...singlecardTool];
+    return [...scryfallTool, ...singlecardTool, ...vectorStoreTool];
   }
   if (step === 2) {
     // Dynamically fetch tracker tools for step 2
@@ -101,10 +101,11 @@ const systemContentMap = {
   "1": `
     You are a helpful Magic: The Gathering search agent.
     You will use the scryfall_search tool to find possible card printings based on user input.
+    This tool returns an array of set_code and collector_number objects. Information about these objects is found using vector_store_search.
     You then follow up with questions to the user to narrow down the search results to a single printing.
     Always narrow down searches until a single printing is found.
-    You are NOT allowed to decide the printing yourself. If there are multiple results in the scryfall data, you MUST ask the user to clarify.
-    Once you have narrowed down to a single printing, you MUST call the local_singlecard tool using the set_code, collector_number and image_url from the scryfall data.
+    You are NOT allowed to decide the printing yourself. If there are multiple results in the tool results data, you MUST ask the user to clarify.
+    Once you have narrowed down to a single printing, you MUST call the local_singlecard tool using the set_code and collector_number from the scryfall data.
     Once the local_singlecard tool has been called, you MUST ask the user about what operations they wish to perform on that card in relation to their collection:
     Add, remove, update quantity, check if there are already foil or non-foil copies in the collection, etc.
   `,
@@ -134,187 +135,139 @@ const systemContentMap = {
 
 async function sendMessage(userInput, incomingMessages) {
   await ensureOpenAIClient();
-  // Ensure incomingMessages is always an array
   incomingMessages = Array.isArray(incomingMessages) ? incomingMessages : [];
 
+  // Step 1: classify workflow step
   let intent = await classifyStep(userInput, incomingMessages);
   let tools = await getToolsForStep(intent);
   let systemContent = systemContentMap[intent] || "You are a helpful assistant.";
 
   console.log("Step:", intent);
-  console.log("Using tools:", tools.map(t => t.function.name));
+  console.log("Using tools:", tools.map(t => t.name));
   console.log("System prompt:", systemContent);
   console.log("Last user input:", userInput);
 
-  // We will clean up the messages array based on context needs.
-  // Clean up step 1: Preserve only from last user message onward.
-  // Find the index of the last user message in incomingMessages
-  // Find the indexes of the last two user messages in incomingMessages
-  // 1. Filter out system messages
+  // --- Clean message history to minimize tokens ---
   const nonSystem = incomingMessages.filter(m => m.role !== 'system');
-
-  // 2. Collect last 3 user and assistant (no tool_calls)
   const lastUsers = nonSystem.filter(m => m.role === 'user').slice(-3);
-  const lastAssistants = nonSystem
-    .filter(m => m.role === 'assistant' && !m.tool_calls)
-    .slice(-3);
+  const lastAssistants = nonSystem.filter(m => m.role === 'assistant' && !m.tool_calls).slice(-3);
 
-  // 3. Find last tool call + result for local_singlecard
   let lastLocalIdx = -1;
-  for (let i = nonSystem.length - 1; i >= 0; i--) {
-    const m = nonSystem[i];
-    if (m.role === 'assistant' && m.tool_calls) {
-      const tc = m.tool_calls.find(tc => tc.function.name === 'local_singlecard');
-      if (tc) {
-        lastLocalIdx = i;
-        break;
-      }
-    }
-  }
-
-  // 4. Find last tool call + result for scryfall_search
   let lastScryfallIdx = -1;
+
   for (let i = nonSystem.length - 1; i >= 0; i--) {
     const m = nonSystem[i];
     if (m.role === 'assistant' && m.tool_calls) {
-      const tc = m.tool_calls.find(tc => tc.function.name === 'scryfall_search');
-      if (tc) {
-        lastScryfallIdx = i;
-        break;
-      }
+      if (m.tool_calls.find(tc => tc.function.name === 'local_singlecard')) lastLocalIdx = i;
+      if (m.tool_calls.find(tc => tc.function.name === 'scryfall_search')) lastScryfallIdx = i;
     }
   }
 
-  // 5. Collect preserved messages into a Set (for uniqueness)
-  const preservedSet = new Set();
+  const preservedSet = new Set([...lastUsers, ...lastAssistants]);
 
-  // Add last user + assistant messages
-  [...lastUsers, ...lastAssistants].forEach(m => preservedSet.add(m));
-
-  // Add last local_singlecard call + following tool result
   if (lastLocalIdx >= 0) {
     preservedSet.add(nonSystem[lastLocalIdx]);
-    if (
-      nonSystem[lastLocalIdx + 1] &&
-      nonSystem[lastLocalIdx + 1].role === 'tool'
-    ) {
-      preservedSet.add(nonSystem[lastLocalIdx + 1]);
-    }
+    if (nonSystem[lastLocalIdx + 1]?.role === 'tool') preservedSet.add(nonSystem[lastLocalIdx + 1]);
   }
 
-  // Add last scryfall_search call + following tool result only if no local_singlecard result
   if (lastLocalIdx < 0 && lastScryfallIdx >= 0) {
     preservedSet.add(nonSystem[lastScryfallIdx]);
-    if (
-      nonSystem[lastScryfallIdx + 1] &&
-      nonSystem[lastScryfallIdx + 1].role === 'tool'
-    ) {
-      preservedSet.add(nonSystem[lastScryfallIdx + 1]);
-    }
+    if (nonSystem[lastScryfallIdx + 1]?.role === 'tool') preservedSet.add(nonSystem[lastScryfallIdx + 1]);
   }
 
-  // 6. Preserve original order
   const preservedMessages = nonSystem.filter(m => preservedSet.has(m));
   console.log("Preserved messages:", preservedMessages);
 
-
-  // First, call the model to get the assistant response including any tool calls: 
-  const response = await client.chat.completions.create({
+  // --- Initial assistant call using Responses API ---
+  let response = await client.responses.create({
     model: "gpt-4o-mini",
-    messages: [
+    input: [
       { role: "system", content: systemContent },
       ...preservedMessages,
       { role: "user", content: userInput }
     ],
     tools: tools,
     tool_choice: "auto",
-    temperature: 0.2
+    temperature: 0.2,
   });
-  //console.log("Initial assistant message:", response.choices[0].message);
+
+  console.log("Initial response:", response);
 
   let messages = [
     { role: "system", content: systemContent },
     ...preservedMessages,
-    { role: "user", content: userInput }
+    { role: "user", content: userInput },
   ];
-  let assistantMessage = response.choices[0].message;
-  messages.push(assistantMessage);
+  let assistantMessage = response.output?.find(o => o.type === "message");
+  if (assistantMessage) messages.push(assistantMessage);
 
-  // Strict OpenAI protocol: reply to tool_calls in the very next message only
-  while (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
-    // Build tool responses for this assistant message
+  console.log("Initial assistant message:", assistantMessage);
+  // Filter for tool calls (function_call type)
+  let functionCalls = response.output.filter(o => o.type === "function_call");
+  messages.push(...functionCalls);
+  while (functionCalls.length > 0) {
     const toolResponses = [];
-    for (const toolCall of assistantMessage.tool_calls) {
-      console.log("Executing tool call:", JSON.stringify(toolCall, null, 2));
-      if (!toolCall.function) {
-        console.error("Tool call missing 'function' property:", toolCall);
-        continue;
-      }
+
+    for (const fc of functionCalls) {
+      const toolName = fc.name;
+      const args = fc.arguments ? JSON.parse(fc.arguments) : {};
+
+      // Determine executor
       let executor;
-      if (toolCall.function.name.startsWith("tracker_")) {
+      if (toolName.startsWith("tracker_")) {
         executor = toolExecutors["tracker_dynamic"];
       } else {
-        executor = toolExecutors[toolCall.function.name];
+        executor = toolExecutors[toolName];
       }
-      if (executor) {
-        const args = toolCall.function.arguments ? JSON.parse(toolCall.function.arguments) : {};
-        let result;
-        if (toolCall.function.name.startsWith("tracker_")) {
-          result = await executor(toolCall.function.name, args);
-        } else {
-          result = await executor(args);
-        }
-        toolResponses.push({
-          role: "tool",
-          tool_call_id: toolCall.id,
-          content: typeof result === "string" ? result : JSON.stringify(result)
-        });
-        if (toolCall.function.name === "local_singlecard") {
-          // Change intent to 2
-          intent = 2;
-          // Remove all assistant messages except the last one0
-          messages = [
-            { role: "system", content: systemContent },
-            ...messages.filter(m => m.role === "user").slice(-1),
-            ...messages.filter(m => m.role === "assistant").slice(-1)
-          ];
-          console.log("Filtered messages after local_singlecard:", messages);
-        }
-        //console.log(`Tool call with ID ${toolCall.id} result:`, result);
-      } else {
-        console.log(`No executor found for tool call function name: ${toolCall.function.name}`);
+
+      if (!executor) {
+        console.log(`No executor found for tool: ${toolName}`);
+        continue;
+      }
+
+      // Execute tool
+      const result = toolName.startsWith("tracker_")
+        ? await executor(toolName, args)
+        : await executor(args);
+
+      messages.push({
+        call_id: fc.call_id,
+        type: "function_call_output",
+        output: typeof result === "string" ? result : JSON.stringify(result)
+      });
+
+      // Step-switch logic if needed
+      if (toolName === "local_singlecard") {
+        intent = 2;
+        // Optional: prune previous messages
+        // messages = [
+        //   { role: "system", content: systemContent },
+        //   ...messages.filter(m => m.role === "user").slice(-1),
+        //   ...messages.filter(m => m.role === "assistant").slice(-1),
+        // ];
       }
     }
+    console.log("Messages after tool executions:", messages);
 
-    // Update tools and system prompt:
-    tools = await getToolsForStep(intent);
-    systemContent = systemContentMap[intent] || "You are a helpful assistant.";
-    console.log("Step for next call:", intent);
-    messages = [
-      { role: "system", content: systemContent },
-      ...messages.filter(m => m.role !== "system")
-    ];
-    
-    // Add tool responses directly after the assistant message
-    messages.push(...toolResponses);
-
-    console.log("Messages before follow-up call:", messages);
-    // Send tool responses back to OpenAI to get next assistant message
-    const followup = await client.chat.completions.create({
+    // Call OpenAI again with updated messages
+    const followup = await client.responses.create({
       model: "gpt-4o-mini",
-      messages,
-      tools: tools,
+      input: messages,
+      tools: tools, 
       tool_choice: "auto",
-      temperature: 0.2
+      temperature: 0.2,
     });
-    assistantMessage = followup.choices[0].message;
-    messages.push(assistantMessage);
-    console.log("Follow-up assistant message:", assistantMessage);
+    console.log("Follow-up response:", followup);
+
+    // Extract assistant messages and next function calls
+    const newAssistantMessages = followup.output.filter(o => o.type === "message");
+    messages.push(...newAssistantMessages);
+
+    functionCalls = followup.output.filter(o => o.type === "function_call");
   }
 
-  // Return the final messages array for use as next incomingMessages
-  //console.log("Final response messages:", messages);
   return { messages };
 }
+
 
 module.exports = { sendMessage};
