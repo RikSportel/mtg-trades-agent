@@ -12,9 +12,17 @@ const scryfallTool = [
           type: "string",
           description: "Card name (exact or partial). Example: 'Stomping Ground'."
         },
+        type: {
+          type: "string",
+          description: "Filter by card type. Examples: 'creature', 'instant', 'sorcery', 'enchantment', 'artifact', 'planeswalker', 'land'."
+        },
+        reserved: {
+          type: "boolean",
+          description: "Set to true to restrict results to only cards on the Reserved List."
+        },
         oracle_text: {
           type: "string",
-          description: "Filter by words in rules text (Oracle text). Example: 'proliferate'."
+          description: "Filter by words in rules text (Oracle text). Examples: 'proliferate', 'flying', 'vigilance'."
         },
         colors: {
           type: "array",
@@ -22,15 +30,15 @@ const scryfallTool = [
             type: "string",
             enum: ["W", "U", "B", "R", "G"]
           },
-          description: "Restrict results to specific colors. Example: ['R', 'G']."
+          description: "Restrict results to specific color cards. W=White, U=Blue, B=Black, R=Red, G=Green. Multiple colors can be specified. Example: ['R', 'G']. The user should explicitly mention these colors. Note that if the user mentions colors for a card that is of type land, the user is wrong and you should not pass colors to the tool."
         },
         set: {
           type: "string",
-          description: "Optional set code or name, e.g. 'GPT' or 'Guildpact'."
+          description: "Optional set code or name, e.g. 'GPT' or 'Guildpact' as mentioned by the user."
         },
         page: {
           type: "integer",
-          description: "Results page number (default = 1)."
+          description: "Results page number"
         },
         order: {
           type: "string",
@@ -42,7 +50,8 @@ const scryfallTool = [
           enum: ["auto", "asc", "desc"],
           description: "Sort direction."
         }
-      }
+      },
+      additionalProperties: false
     }
   }
 ];

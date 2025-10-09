@@ -92,16 +92,24 @@ const toolExecutors = {
   }
 };
 
-async function scryfallSearch({ name, oracle_text, colors, set, page, order, dir }) {
+async function scryfallSearch({ name, oracle_text, type, reserved, colors, set, page, order, dir }) {
   let query = [];
-
   if (name) query.push(`name:"${name}"`);
-  if (oracle_text) query.push(`o:"${oracle_text}"`);
+  if (oracle_text) {
+    oracle_text.split(/\s+/).forEach(word => {
+      if (word) query.push(`o:"${word}"`);
+    });
+  }
+  if (type) {
+    type.split(/\s+/).forEach(word => {
+      if (word) query.push(`t:"${word}"`);
+    });
+  }
+  if (reserved) query.push("is:reserved");
   if (colors && colors.length > 0) query.push(`c:"${colors.join('')}"`);
   if (set) query.push(`set:${set}`);
   query.push("game:paper");
   query.push("unique:prints");
-
   const params = new URLSearchParams({
     q: query.join(" "),
     ...(page && { page }),
@@ -112,10 +120,11 @@ async function scryfallSearch({ name, oracle_text, colors, set, page, order, dir
   const res = await fetch(`https://api.scryfall.com/cards/search?${params.toString()}`);
  
   const json = await res.json();
-  return (json.data || []).map(card => ({
+  return {"summary": 
+  (json.data || []).map(card => ({
     set: card.set,
     collector_number: card.collector_number
-  }));
+  })),"details": json.data || []}
 }
 
 function storeSingleCard({ set_code, collector_number, image_url }) {
