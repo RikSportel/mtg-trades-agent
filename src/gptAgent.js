@@ -206,14 +206,29 @@ async function sendMessage(userInput, incomingMessages) {
     { role: "user", content: userInput },
   ];
   // --- Initial assistant call using Responses API ---
-  let response = await client.responses.create({
+  const stream = client.responses.stream({
     model: "gpt-4o-mini",
     input: messages,
     tools: tools,
     tool_choice: "auto",
     temperature: 0.2,
+    stream: true
   });
 
+  for await (const event of stream) {
+    console.log(event);
+  }
+
+  let response = await stream.finalResponse()
+  console.log("Raw final response:", response);
+  response.output = response.output.map(item => {
+    if (item.type === "function_call" && "parsed_arguments" in item) {
+      // Remove only the parsed_arguments field, keep everything else unchanged
+      const { parsed_arguments, ...rest } = item;
+      return rest;
+    }
+    return item;
+  });
   console.log("Initial response:", response);
 
   let assistantMessage = response.output?.find(o => o.type === "message");

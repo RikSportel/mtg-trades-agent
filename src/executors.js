@@ -19,12 +19,13 @@ const toolExecutors = {
         return await scryfallSearch(args);
     },
 
-    local_singlecard: (args) => {
-        //console.log("Executing local_singlecard with args:", args);
-        return storeSingleCard(args);
-    },
+    // local_singlecard: (args) => {
+    //     //console.log("Executing local_singlecard with args:", args);
+    //     return storeSingleCard(args);
+    // },
     
   tracker_dynamic: async (toolName, args, bearerToken) => {
+    //console.log(`Executing ${toolName} with args:`, args);
     const apiUrl = process.env.MTG_BACKEND_API_URL;
     const swaggerUrl = `${apiUrl}/api-docs/swagger.json`;
     const operationId = toolName.replace(/^tracker_/, "");
@@ -77,17 +78,38 @@ const toolExecutors = {
         if (Object.keys(requestBody).length === 0) requestBody = undefined;
       }
 
-      console.log(`Sending request: operationId=${operationId}, parameters=${JSON.stringify(paramArgs)}, requestBody=${JSON.stringify(requestBody)}`);
       // Execute the operation directly
       const res = await client.execute({
         operationId,
         parameters: paramArgs,
         ...(requestBody && { requestBody })
       });
-
-      return { status: "success" };
+      if (res.body) {
+        console.log("We are here");
+        if (typeof res.body === "object") {
+          // Case 1: response is an object with a "scryfall" child
+          if ("scryfall" in res.body) {
+            res.body.name = res.body.scryfall.name;
+            delete res.body.scryfall;
+          } else {
+          // Case 2: response is an object whose child objects have a "scryfall" child
+            Object.keys(res.body).forEach(key => {
+              console.log("Checking key in response body:", key);
+              const item = res.body[key];
+              console.log("Item value:", item);
+              if (item && typeof item === "object" && "scryfall" in item) {
+                item.name = item.scryfall.name;
+                delete item.scryfall;
+              }
+            });
+          }
+        }
+      }
+      
+      return { status: "success", message: res.body };
     } catch (err) {
-      return { error: err.message };
+      console.log("Error executing tracker_dynamic:", err);
+      return { status: "error", message: err.message };
     }
   }
 };
@@ -127,10 +149,10 @@ async function scryfallSearch({ name, oracle_text, type, reserved, colors, set, 
   })),"details": json.data || []}
 }
 
-function storeSingleCard({ set_code, collector_number, image_url }) {
-    console.log("Storing single card:", { set_code, collector_number, image_url });
-    return { status: "success", set_code, collector_number, image_url };
-}
+// function storeSingleCard({ set_code, collector_number, image_url }) {
+//     //console.log("Storing single card:", { set_code, collector_number, image_url });
+//     return { status: "success", set_code, collector_number, image_url };
+// }
 
 async function getBearerToken() {
     const apiUrl = process.env.MTG_BACKEND_API_URL;

@@ -59,31 +59,31 @@ const scryfallTool = [
 const vectorStoreTool = [
   {
     type: "file_search",
-    vector_store_ids: ["vs_68e4d320b04c8191a374759b35b2376d"]
+    vector_store_ids: ["vs_68e4d320b04c8191a374759b35b2376d","vs_68f1231a32488191b7e63671b8b8b264"]
   }
 ]
 
-const singlecardTool = [
-  {
-    type: "function",
-    name: "local_singlecard",
-    description: "Call this function when a single card printing has been unambiguously identified. Store the set code, collector number, and image URL, to transition to the next phase.",
-    parameters: {
-      type: "object",
-      properties: {
-        set_code: {
-          type: "string",
-          description: "Card set code (e.g. 'GPT')."
-        },
-        collector_number: {
-          type: "string",
-          description: "Card collector number (e.g. '123')."
-        }
-      },
-      required: ["set_code", "collector_number"]
-    }
-  }
-];
+// const singlecardTool = [
+//   {
+//     type: "function",
+//     name: "local_singlecard",
+//     description: "Call this function when a single card printing has been unambiguously identified. Store the set code, collector number, and image URL, to transition to the next phase.",
+//     parameters: {
+//       type: "object",
+//       properties: {
+//         set_code: {
+//           type: "string",
+//           description: "Card set code (e.g. 'GPT')."
+//         },
+//         collector_number: {
+//           type: "string",
+//           description: "Card collector number (e.g. '123')."
+//         }
+//       },
+//       required: ["set_code", "collector_number"]
+//     }
+//   }
+// ];
 
 async function fetchTrackerFunctions() {
   const apiUrl = process.env.MTG_BACKEND_API_URL;
@@ -127,14 +127,14 @@ async function fetchTrackerFunctions() {
         });
       }
     }
-    console.log("Fetched tracker functions:", JSON.stringify(functions, null, 2));
+    //console.log("Fetched tracker functions:", JSON.stringify(functions, null, 2));
     return functions;
   } catch (err) {
     return [];
   }
 }
 
-module.exports = { scryfallTool, singlecardTool, vectorStoreTool, fetchTrackerFunctions };
+module.exports = { scryfallTool, vectorStoreTool, fetchTrackerFunctions };
 
 
 
